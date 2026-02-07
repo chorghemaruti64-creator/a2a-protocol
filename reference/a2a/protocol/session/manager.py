@@ -14,7 +14,8 @@ Thread-safe using locks for concurrent access.
 
 import threading
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
+from hashlib import sha256
 from .session import Session, SessionStatus
 from .errors import (
     SessionNotFoundError,
@@ -46,6 +47,11 @@ class SessionManager:
         manifest_hash: str,
         policy_hash: str,
         expires_at: float,
+        client_manifest_hash: Optional[str] = None,
+        server_manifest_hash: Optional[str] = None,
+        nonce_a: Optional[str] = None,
+        nonce_b: Optional[str] = None,
+        policy: Optional[Any] = None,
     ) -> Session:
         """
         Create a new session.
@@ -57,6 +63,11 @@ class SessionManager:
             manifest_hash: Hash of agreed manifest
             policy_hash: Hash of agreed policy
             expires_at: Timestamp when session expires
+            client_manifest_hash: Client manifest hash (for session commitment)
+            server_manifest_hash: Server manifest hash (for session commitment)
+            nonce_a: Nonce A from handshake (for session commitment)
+            nonce_b: Nonce B from handshake (for session commitment)
+            policy: Full policy document (for intent filtering)
         
         Returns:
             Created Session object
@@ -68,6 +79,12 @@ class SessionManager:
             if session_id in self._sessions:
                 raise SessionError(f"Session already exists: {session_id}")
             
+            # Compute session commitment (Issue #1: Session hijacking prevention)
+            session_commitment = None
+            if client_manifest_hash and server_manifest_hash and nonce_a and nonce_b:
+                commitment_input = f"{client_manifest_hash}|{server_manifest_hash}|{nonce_a}|{nonce_b}"
+                session_commitment = f"sha256:{sha256(commitment_input.encode()).hexdigest()}"
+            
             session = Session(
                 session_id=session_id,
                 client_did=client_did,
@@ -78,6 +95,9 @@ class SessionManager:
                 expires_at=expires_at,
                 message_count=0,
                 status=SessionStatus.ACTIVE,
+                session_commitment=session_commitment,
+                policy=policy,
+                last_sequence=0,
             )
             
             self._sessions[session_id] = session
@@ -88,6 +108,63 @@ class SessionManager:
             self._client_sessions[client_did].add(session_id)
             
             return session
+    
+    def validate_session_commitment(self, session_id: str, received_commitment: str) -> bool:
+        """
+        Validate session commitment (Issue #1: Session hijacking prevention).
+        
+        Args:
+            session_id: Session identifier
+            received_commitment: Commitment from client request
+        
+        Returns:
+            True if commitment is valid
+        
+        Raises:
+            SessionError: If commitment does not match
+        """
+        session = self.get_session(session_id)
+        
+        if not session.session_commitment:
+            # Session created without commitment binding (backward compatible)
+            return True
+        
+        if received_commitment != session.session_commitment:
+            raise SessionError(
+                "SESSION_COMMITMENT_MISMATCH",
+                status_code=401,
+            )
+        
+        return True
+    
+    def validate_sequence(self, session_id: str, sequence: int) -> bool:
+        """
+        Validate request sequence number (Issue #8: Out-of-order request prevention).
+        
+        Args:
+            session_id: Session identifier
+            sequence: Request sequence number
+        
+        Returns:
+            True if sequence is valid
+        
+        Raises:
+            SessionError: If sequence is out of order
+        """
+        session = self.get_session(session_id)
+        
+        if sequence <= session.last_sequence:
+            raise SessionError(
+                f"OUT_OF_ORDER_SEQUENCE",
+                status_code=400,
+            )
+        
+        # Atomic update of last_sequence
+        with self._lock:
+            if sequence > session.last_sequence:
+                session.last_sequence = sequence
+        
+        return True
     
     def get_session(self, session_id: str) -> Session:
         """

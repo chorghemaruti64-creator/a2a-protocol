@@ -8,7 +8,7 @@ Includes session lifecycle state and message tracking.
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Optional, Any
 
 
 class SessionStatus(Enum):
@@ -34,6 +34,9 @@ class Session:
         policy_hash: Hash of agreed policy document
         status: Current lifecycle status (ACTIVE, EXPIRED, CLOSED)
         last_activity: Timestamp of last activity
+        session_commitment: Session commitment hash (Issue #1 - session hijacking prevention)
+        policy: Full policy document (for per-request intent filtering)
+        last_sequence: Last validated request sequence number (Issue #8 - replay prevention)
     """
     
     session_id: str
@@ -46,6 +49,9 @@ class Session:
     message_count: int = 0
     status: SessionStatus = SessionStatus.ACTIVE
     last_activity: float = field(default_factory=time.time)
+    session_commitment: Optional[str] = None  # Issue #1: Session hijacking prevention
+    policy: Optional[dict] = None  # Issue #6: Intent filtering per-request
+    last_sequence: int = 0  # Issue #8: Request sequence tracking
     
     def is_expired(self) -> bool:
         """
@@ -98,4 +104,7 @@ class Session:
             'message_count': self.message_count,
             'status': self.status.value,
             'last_activity': self.last_activity,
+            'session_commitment': self.session_commitment,
+            'policy': self.policy,
+            'last_sequence': self.last_sequence,
         }

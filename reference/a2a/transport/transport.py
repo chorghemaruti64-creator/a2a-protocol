@@ -228,6 +228,9 @@ class RequestEnvelope:
         method: str,
         params: Dict[str, Any],
         request_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_commitment: Optional[str] = None,
+        sequence: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Create a JSON-RPC 2.0 request envelope.
@@ -236,6 +239,9 @@ class RequestEnvelope:
             method: RPC method name
             params: Method parameters (dict)
             request_id: Request ID (auto-generated if not provided)
+            session_id: Session ID (optional, for session-bound requests)
+            session_commitment: Session commitment hash (optional, Issue #1)
+            sequence: Request sequence number (optional, Issue #8)
 
         Returns:
             Valid JSON-RPC 2.0 request dict
@@ -243,12 +249,24 @@ class RequestEnvelope:
         if request_id is None:
             request_id = Transport.generate_request_id()
 
-        return {
+        envelope = {
             "jsonrpc": "2.0",
             "method": method,
             "params": params,
             "id": request_id,
         }
+        
+        # Add session fields if provided
+        if session_id is not None:
+            envelope["session_id"] = session_id
+        
+        if session_commitment is not None:
+            envelope["session_commitment"] = session_commitment
+        
+        if sequence is not None:
+            envelope["sequence"] = sequence
+        
+        return envelope
 
 
 class ResponseEnvelope:

@@ -14,6 +14,7 @@ Returns (allowed: bool, reason: str, status_code: int) tuples.
 import time
 from typing import Tuple, Optional, List, Dict, Any
 from dataclasses import dataclass, field
+from threading import RLock
 from .session import Session
 from .manager import SessionManager
 from .errors import (
@@ -74,7 +75,10 @@ class PolicyEnforcer:
     Enforces policies on session requests.
     
     Tracks rate limit state per session using message timestamps.
+    Also tracks per-client-DID rate limits across all sessions (Issue #5).
     Chains multiple policy checks: rate_limit -> intent -> payload -> concurrent.
+    
+    Thread-safe using RLock for concurrent rate limit checks.
     """
     
     def __init__(self, session_manager: SessionManager):
@@ -87,6 +91,9 @@ class PolicyEnforcer:
         self.session_manager = session_manager
         # Track request times per session for rate limiting
         self._request_times: Dict[str, List[float]] = {}
+        # Track per-client-DID rate limits (Issue #5)
+        self._client_request_times: Dict[str, List[float]] = {}
+        self._rate_limit_lock = RLock()
     
     def check_rate_limit(
         self,
@@ -108,47 +115,111 @@ class PolicyEnforcer:
         Raises:
             RateLimitExceededError: If any limit exceeded
         """
-        now = time.time()
-        session_id = session.session_id
+        with self._rate_limit_lock:
+            now = time.time()
+            session_id = session.session_id
+            
+            if session_id not in self._request_times:
+                self._request_times[session_id] = []
+            
+            times = self._request_times[session_id]
+            
+            # Remove old requests outside windows
+            one_hour_ago = now - 3600
+            times[:] = [t for t in times if t > one_hour_ago]
+            
+            # Check per-second limit
+            second_ago = now - 1
+            requests_per_sec = sum(1 for t in times if t > second_ago)
+            if requests_per_sec >= policy.rate_limit.requests_per_second:
+                raise RateLimitExceededError(
+                    policy.rate_limit.requests_per_second,
+                    "per second"
+                )
+            
+            # Check per-minute limit
+            minute_ago = now - 60
+            requests_per_min = sum(1 for t in times if t > minute_ago)
+            if requests_per_min >= policy.rate_limit.requests_per_minute:
+                raise RateLimitExceededError(
+                    policy.rate_limit.requests_per_minute,
+                    "per minute"
+                )
+            
+            # Check per-hour limit
+            requests_per_hr = len(times)
+            if requests_per_hr >= policy.rate_limit.requests_per_hour:
+                raise RateLimitExceededError(
+                    policy.rate_limit.requests_per_hour,
+                    "per hour"
+                )
+            
+            # Record this request
+            times.append(now)
+            return True
+    
+    def check_client_rate_limit(
+        self,
+        client_did: str,
+        policy: SessionPolicy,
+    ) -> bool:
+        """
+        Check if client (across all sessions) is within rate limits (Issue #5).
         
-        if session_id not in self._request_times:
-            self._request_times[session_id] = []
+        Enforces per-second, per-minute, and per-hour limits PER CLIENT DID.
+        This is independent of per-session limits.
         
-        times = self._request_times[session_id]
+        Args:
+            client_did: Client DID
+            policy: SessionPolicy with rate_limit config
         
-        # Remove old requests outside windows
-        one_hour_ago = now - 3600
-        times[:] = [t for t in times if t > one_hour_ago]
+        Returns:
+            True if within limits
         
-        # Check per-second limit
-        second_ago = now - 1
-        requests_per_sec = sum(1 for t in times if t > second_ago)
-        if requests_per_sec >= policy.rate_limit.requests_per_second:
-            raise RateLimitExceededError(
-                policy.rate_limit.requests_per_second,
-                "per second"
-            )
-        
-        # Check per-minute limit
-        minute_ago = now - 60
-        requests_per_min = sum(1 for t in times if t > minute_ago)
-        if requests_per_min >= policy.rate_limit.requests_per_minute:
-            raise RateLimitExceededError(
-                policy.rate_limit.requests_per_minute,
-                "per minute"
-            )
-        
-        # Check per-hour limit
-        requests_per_hr = len(times)
-        if requests_per_hr >= policy.rate_limit.requests_per_hour:
-            raise RateLimitExceededError(
-                policy.rate_limit.requests_per_hour,
-                "per hour"
-            )
-        
-        # Record this request
-        times.append(now)
-        return True
+        Raises:
+            RateLimitExceededError: If any limit exceeded
+        """
+        with self._rate_limit_lock:
+            now = time.time()
+            
+            if client_did not in self._client_request_times:
+                self._client_request_times[client_did] = []
+            
+            times = self._client_request_times[client_did]
+            
+            # Remove old requests outside windows
+            one_hour_ago = now - 3600
+            times[:] = [t for t in times if t > one_hour_ago]
+            
+            # Check per-second limit (per client)
+            second_ago = now - 1
+            requests_per_sec = sum(1 for t in times if t > second_ago)
+            if requests_per_sec >= policy.rate_limit.requests_per_second:
+                raise RateLimitExceededError(
+                    policy.rate_limit.requests_per_second,
+                    f"per second (per client {client_did})"
+                )
+            
+            # Check per-minute limit (per client)
+            minute_ago = now - 60
+            requests_per_min = sum(1 for t in times if t > minute_ago)
+            if requests_per_min >= policy.rate_limit.requests_per_minute:
+                raise RateLimitExceededError(
+                    policy.rate_limit.requests_per_minute,
+                    f"per minute (per client {client_did})"
+                )
+            
+            # Check per-hour limit (per client)
+            requests_per_hr = len(times)
+            if requests_per_hr >= policy.rate_limit.requests_per_hour:
+                raise RateLimitExceededError(
+                    policy.rate_limit.requests_per_hour,
+                    f"per hour (per client {client_did})"
+                )
+            
+            # Record this request
+            times.append(now)
+            return True
     
     def check_intent_allowed(
         self,
@@ -251,10 +322,11 @@ class PolicyEnforcer:
         Enforce all policy checks in sequence.
         
         Checks (in order):
-        1. Rate limit
-        2. Intent allowed
-        3. Payload size
-        4. Concurrent sessions
+        1. Rate limit (per-session)
+        2. Rate limit (per-client-DID, Issue #5)
+        3. Intent allowed (Issue #6)
+        4. Payload size
+        5. Concurrent sessions
         
         Args:
             session: Session object
@@ -269,6 +341,7 @@ class PolicyEnforcer:
         """
         try:
             self.check_rate_limit(session, policy)
+            self.check_client_rate_limit(session.client_did, policy)  # Issue #5
             self.check_intent_allowed(intent_goal, policy)
             self.check_payload_size(payload, policy)
             self.check_concurrent_sessions(session.client_did, policy)
@@ -293,9 +366,12 @@ class PolicyEnforcer:
         Args:
             session_id: Session identifier
         """
-        if session_id in self._request_times:
-            del self._request_times[session_id]
+        with self._rate_limit_lock:
+            if session_id in self._request_times:
+                del self._request_times[session_id]
     
     def clear_all(self) -> None:
         """Clear all rate limit history (for testing)."""
-        self._request_times.clear()
+        with self._rate_limit_lock:
+            self._request_times.clear()
+            self._client_request_times.clear()
