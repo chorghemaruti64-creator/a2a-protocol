@@ -208,7 +208,7 @@ def test_03_total_timeout(client_keypair, client_did, manifest_hash, policy_hash
     fsm = HandshakeFSM(client_keypair, client_did, manifest_hash, config)
     
     fsm.hello()
-    time.sleep(1.5)  # Ensure total timeout definitely occurs
+    time.sleep(2)  # Ensure total timeout definitely occurs
     
     # Try to receive CHALLENGE after total timeout
     challenge_msg = ChallengeMessage(
