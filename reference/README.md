@@ -14,6 +14,21 @@ source venv/bin/activate
 pip install -e .
 ```
 
+### Complete Project Integration Guide
+
+**For building and integrating your own agents with A2A**, see:
+👉 **[PROJECT_INTEGRATION_GUIDE.md](PROJECT_INTEGRATION_GUIDE.md)** — Step-by-step instructions with:
+- ✅ 5-phase integration workflow (prep → implement → test → document → submit)
+- ✅ Complete code examples (agent server, client, intents)
+- ✅ Testing requirements (unit, integration, security)
+- ✅ Documentation templates (README, CONTRIBUTING, API)
+- ✅ Submission and review process
+- ✅ Troubleshooting and FAQ
+
+**Time estimate:** 6-12 hours for complete project integration
+
+---
+
 ### Create Your First Agents
 
 ```python
@@ -153,10 +168,174 @@ See `THREAT_MODEL.md` for detailed threat analysis and `DEPLOYMENT.md` for produ
 ## 📖 Documentation
 
 - **[README.md](README.md)** - This file (quick start, overview)
+- **[PROJECT_INTEGRATION_GUIDE.md](PROJECT_INTEGRATION_GUIDE.md)** - Complete agent project integration (5 phases, code examples)
 - **[THREAT_MODEL.md](THREAT_MODEL.md)** - Security threat analysis and mitigations
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment guide
 - **[CHANGELOG.md](CHANGELOG.md)** - Release notes and version history
 - **[EXAMPLE_AGENTS.py](EXAMPLE_AGENTS.py)** - Complete working example
+
+## 🤖 Prompts for AI Agents
+
+Use these prompts to instruct AI agents on implementing A2A Protocol:
+
+### Prompt 1: Implement A2A Agent Server
+
+```
+You are an AI assistant specialized in building secure agent services.
+
+TASK: Implement an A2A Protocol-compliant agent server that:
+1. Creates a unique DID-based identity
+2. Listens for incoming A2A handshake requests
+3. Handles intent requests (goals with parameters)
+4. Returns properly formatted responses
+5. Logs all interactions for audit trail
+
+REQUIREMENTS:
+- Use a2a-protocol>=1.0.0 library
+- Implement cryptographic signature verification (JWS)
+- Enforce TLS 1.3 in production
+- Support at least 2 custom intents (define them)
+- Achieve 80%+ test coverage
+- Document all intents with parameters and responses
+
+DELIVERABLES:
+1. agent_server.py - Main server implementation
+2. test_agent_server.py - Complete test suite
+3. README.md - Quick start guide with examples
+4. intents/ - Intent handler modules
+
+REFERENCE: See PROJECT_INTEGRATION_GUIDE.md Phase 2 for code examples and architecture.
+Start by reading A2A_PROTOCOL_v1.md specification (Section 5-6).
+```
+
+### Prompt 2: Implement A2A Agent Client
+
+```
+You are an AI assistant specialized in building secure agent clients.
+
+TASK: Implement an A2A Protocol-compliant client that:
+1. Creates its own DID-based identity
+2. Discovers and connects to other agents
+3. Performs cryptographic handshake
+4. Sends intent requests to remote agents
+5. Processes and validates responses
+
+REQUIREMENTS:
+- Use a2a-protocol>=1.0.0 library
+- Implement proper error handling for all failure modes
+- Support concurrent calls to multiple agents
+- Cache sessions to improve performance
+- Full test coverage (≥80%)
+- Timeout handling (30s handshake, 10s per-state)
+
+DELIVERABLES:
+1. agent_client.py - Client implementation
+2. test_agent_client.py - Test suite
+3. examples/ - 2 usage examples
+4. docs/CLIENT_API.md - API reference
+
+REFERENCE: See PROJECT_INTEGRATION_GUIDE.md Phase 2 for code examples.
+Start by reading A2A_PROTOCOL_v1.md Section 5 (Handshake FSM).
+```
+
+### Prompt 3: Create Multi-Agent System
+
+```
+You are an AI architect designing a multi-agent system.
+
+TASK: Design and implement a network of 3+ interconnected A2A agents:
+1. Agent A: Data Processor (analyzes data)
+2. Agent B: Translator (translates text)
+3. Agent C: Orchestrator (coordinates agents)
+
+REQUIREMENTS:
+- All agents must be A2A-compliant
+- Each agent has unique DID and manifest
+- At least 3 distinct intents per agent
+- Agents call each other (client + server)
+- Full audit logging
+- TLS 1.3 encryption for all communication
+- Concurrent request handling
+
+DELIVERABLES:
+1. agents/ - Agent implementations
+2. integration_test.py - End-to-end tests
+3. docker-compose.yml - Local deployment
+4. docs/ARCHITECTURE.md - System design
+
+REFERENCE: See PROJECT_INTEGRATION_GUIDE.md examples for orchestration.
+Start by defining intent interfaces between agents.
+```
+
+### Prompt 4: Extend A2A Protocol
+
+```
+You are an AI system architect extending the A2A Protocol.
+
+TASK: Implement a protocol extension for [your feature]:
+Examples: custom transport layer, discovery, reputation system, streaming
+
+REQUIREMENTS:
+- Compliant with A2A v1.0.0 core
+- No breaking changes to existing implementations
+- Formal specification document required
+- Reference implementation in Python
+- Comprehensive test suite (≥85% coverage)
+- Security review documentation
+
+DELIVERABLES:
+1. SPEC.md - RFC-style specification
+2. implementation/ - Reference code
+3. tests/ - Complete test suite
+4. SECURITY_REVIEW.md - Security analysis
+
+REFERENCE: See docs/adr/ for architecture decision record template.
+Submit as PR to main repository after completion.
+```
+
+### Quick Prompt Template (Copy & Customize)
+
+```
+You are an AI assistant helping implement A2A Protocol agents.
+
+TASK: [Your specific goal here]
+
+A2A PROTOCOL ESSENTIALS:
+- DIDs: Decentralized identifiers (did:key:...)
+- Manifests: Signed JSON identity cards (JWS)
+- Handshake: 6-step authenticated protocol
+- Sessions: Encrypted, audited message exchange
+- Intents: Goal-based requests with parameters
+- Policy: Security constraints and rate limits
+
+REQUIREMENTS:
+- Use a2a-protocol>=1.0.0 library
+- Implement Ed25519 signatures (JWS RFC 7515)
+- Enforce TLS 1.3 in production
+- Achieve 80%+ test coverage
+- Comprehensive docstrings
+- Error handling for all paths
+
+CODE STYLE:
+- PEP 8 compliant
+- Type hints on public functions
+- Async/await for I/O operations
+- Clear, boring, infra-grade code
+
+START WITH:
+1. Read PROJECT_INTEGRATION_GUIDE.md
+2. Study the handshake flow (diagram in README)
+3. Review example code in /reference/examples/
+4. Write tests before implementation
+
+DELIVERABLES:
+1. Source code with docstrings
+2. Complete test suite
+3. README with examples
+4. CONTRIBUTING.md
+```
+
+---
 
 ## ✅ Testing
 
@@ -281,11 +460,55 @@ MIT License - See LICENSE file for details
 
 ## 🤝 Contributing
 
+### Contributing Code to A2A Protocol
+
 1. Fork the repository
 2. Create a feature branch
 3. Add tests for new features
 4. Ensure all tests pass
 5. Submit a pull request
+
+### Contributing Your Own Project
+
+Want to add your own agent or integration to the A2A ecosystem?
+
+📖 **[PROJECT_INTEGRATION_GUIDE.md](PROJECT_INTEGRATION_GUIDE.md)** provides complete instructions:
+
+1. **Preparation** (30 min)
+   - Set up Git repository and virtual environment
+   - Install A2A framework
+   - Create project structure
+
+2. **Implementation** (2-4 hours)
+   - Create agent identity (DID)
+   - Implement agent server and/or client
+   - Define intent handlers
+
+3. **Testing** (1-2 hours)
+   - Write unit tests (80%+ coverage required)
+   - Write integration tests
+   - Run security checks
+
+4. **Documentation** (1 hour)
+   - Write README with examples
+   - Document all intents
+   - Add CONTRIBUTING guidelines
+
+5. **Submission** (15 minutes)
+   - Create PR to main repository
+   - Include project description and link
+   - Review process (1-3 days)
+
+6. **Publication**
+   - Once approved, project is listed on main site
+   - Discoverable by other agents in network
+
+**Examples:**
+- Simple Echo Agent
+- Multi-Agent Orchestrator
+- Data Processing Service
+
+See [PROJECT_INTEGRATION_GUIDE.md](PROJECT_INTEGRATION_GUIDE.md) for complete examples.
 
 ## 🔗 Links
 
