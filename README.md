@@ -214,7 +214,28 @@ Read in this order:
 
 ## 🤖 AI Agent Prompts
 
-Use these prompts to instruct AI agents to build A2A Protocol implementations:
+### ⭐ **COMPLETE PROMPT** (Recommended)
+
+For the most comprehensive, error-resistant prompt:
+
+👉 **[reference/AI_AGENT_COMPLETE_PROMPT.md](reference/AI_AGENT_COMPLETE_PROMPT.md)** (32KB)
+
+This complete prompt includes:
+- ✅ Detailed step-by-step instructions (Agent Server, Client, Multi-Agent, Extensions)
+- ✅ Complete code examples with full implementations
+- ✅ Mandatory prerequisites and verification
+- ✅ Testing requirements with code samples
+- ✅ Debugging and troubleshooting guide
+- ✅ Final verification checklist
+- ✅ Full references to spec and guides
+
+**Copy this prompt directly into your AI agent — it's designed to be error-resistant.**
+
+---
+
+### Quick Prompts (Reference)
+
+Use these shorter prompts for quick implementation instructions:
 
 ### Prompt 1: Build A2A Agent Server
 

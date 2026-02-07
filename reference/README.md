@@ -176,6 +176,27 @@ See `THREAT_MODEL.md` for detailed threat analysis and `DEPLOYMENT.md` for produ
 
 ## 🤖 Prompts for AI Agents
 
+### ⭐ **COMPLETE PROMPT** (Recommended)
+
+For the most comprehensive, error-resistant prompt with full step-by-step instructions:
+
+👉 **[AI_AGENT_COMPLETE_PROMPT.md](AI_AGENT_COMPLETE_PROMPT.md)** (32KB, production-ready)
+
+This document includes:
+- ✅ Detailed step-by-step instructions for each task type
+- ✅ Complete code examples for agent servers, clients, and multi-agent systems
+- ✅ Mandatory prerequisites and verification steps
+- ✅ Full testing requirements with code samples
+- ✅ Debugging and troubleshooting guide
+- ✅ Final verification checklist
+- ✅ Complete references to specification and guides
+
+**Use this prompt directly in AI agents without modification.**
+
+---
+
+### Quick Prompts (for reference)
+
 Use these prompts to instruct AI agents on implementing A2A Protocol:
 
 ### Prompt 1: Implement A2A Agent Server
