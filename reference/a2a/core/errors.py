@@ -1,3 +1,192 @@
-\"\"\"\nA2A Standard Error Codes and Exceptions.\n\nSee: /spec/A2A_PROTOCOL_v1.md#8-error-handling\n\"\"\"\n\nfrom dataclasses import dataclass\nfrom typing import Optional, Dict, Any\nfrom enum import Enum\n\n\nclass ErrorCode(Enum):\n    \"\"\"Standard A2A error codes.\"\"\"\n    UNVERIFIED_AGENT = \"UNVERIFIED_AGENT\"\n    INVALID_MANIFEST = \"INVALID_MANIFEST\"\n    POLICY_VIOLATION = \"POLICY_VIOLATION\"\n    RATE_LIMIT_EXCEEDED = \"RATE_LIMIT_EXCEEDED\"\n    UNSUPPORTED_CAPABILITY = \"UNSUPPORTED_CAPABILITY\"\n    INVALID_INTENT = \"INVALID_INTENT\"\n    PROTOCOL_VERSION_UNSUPPORTED = \"PROTOCOL_VERSION_UNSUPPORTED\"\n    HANDSHAKE_FAILED = \"HANDSHAKE_FAILED\"\n    SESSION_EXPIRED = \"SESSION_EXPIRED\"\n    TIMEOUT = \"TIMEOUT\"\n    SERVICE_UNAVAILABLE = \"SERVICE_UNAVAILABLE\"\n    INTERNAL_ERROR = \"INTERNAL_ERROR\"\n\n\n@dataclass\nclass A2AError(Exception):\n    \"\"\"\n    Base exception for A2A errors.\n    \n    Attributes:\n        code: Standard error code\n        message: Human-readable error message\n        details: Additional error details (dict)\n        recoverable: Whether this error is recoverable (can retry)\n        request_id: Correlation ID for logging\n        http_status: Recommended HTTP status code\n    \"\"\"\n    \n    code: str\n    message: str\n    details: Dict[str, Any] = None\n    recoverable: bool = False\n    request_id: Optional[str] = None\n    http_status: int = 500\n    \n    def __post_init__(self):\n        if self.details is None:\n            self.details = {}\n        super().__init__(self.message)\n    \n    def to_dict(self) -> Dict[str, Any]:\n        \"\"\"Convert to JSON-serializable dict.\"\"\"\n        return {\n            \"error_code\": self.code,\n            \"error_message\": self.message,\n            \"details\": self.details,\n            \"request_id\": self.request_id,\n            \"recoverable\": self.recoverable,\n        }\n\n\nclass UnverifiedAgentError(A2AError):\n    \"\"\"Agent identity cannot be verified.\"\"\"\n    \n    def __init__(self, message: str, request_id: Optional[str] = None):\n        super().__init__(\n            code=ErrorCode.UNVERIFIED_AGENT.value,\n            message=message,\n            recoverable=False,\n            request_id=request_id,\n            http_status=401,\n        )\n\n\nclass InvalidManifestError(A2AError):\n    \"\"\"Manifest format or content invalid.\"\"\"\n    \n    def __init__(self, message: str, request_id: Optional[str] = None):\n        super().__init__(\n            code=ErrorCode.INVALID_MANIFEST.value,\n            message=message,\n            recoverable=False,\n            request_id=request_id,\n            http_status=400,\n        )\n\n\nclass PolicyError(A2AError):\n    \"\"\"Policy violation (rate limit, blocked intent, etc).\"\"\"\n    \n    def __init__(\n        self,\n        message: str,\n        details: Optional[Dict[str, Any]] = None,\n        request_id: Optional[str] = None,\n    ):\n        super().__init__(\n            code=ErrorCode.POLICY_VIOLATION.value,\n            message=message,\n            details=details or {},\n            recoverable=False,\n            request_id=request_id,\n            http_status=403,\n        )\n\n\nclass RateLimitError(A2AError):\n    \"\"\"Rate limit exceeded.\"\"\"\n    \n    def __init__(\n        self,\n        limit: int,\n        period: int,\n        current_rate: int,\n        reset_at: int,\n        request_id: Optional[str] = None,\n    ):\n        super().__init__(\n            code=ErrorCode.RATE_LIMIT_EXCEEDED.value,\n            message=f\"Rate limit: {limit} requests per {period} seconds\",\n            details={\n                \"limit\": limit,\n                \"period\": period,\n                \"current_rate\": current_rate,\n                \"reset_at\": reset_at,\n                \"retry_after_seconds\": reset_at - int(time.time()),\n            },\n            recoverable=True,\n            request_id=request_id,\n            http_status=429,\n        )\n\n\nclass HandshakeError(A2AError):\n    \"\"\"Handshake protocol error.\"\"\"\n    \n    def __init__(self, message: str, request_id: Optional[str] = None):\n        super().__init__(\n            code=ErrorCode.HANDSHAKE_FAILED.value,\n            message=message,\n            recoverable=True,  # Can retry handshake\n            request_id=request_id,\n            http_status=500,\n        )\n\n\nclass SessionExpiredError(A2AError):\n    \"\"\"Session has expired.\"\"\"\n    \n    def __init__(self, session_id: str, request_id: Optional[str] = None):\n        super().__init__(\n            code=ErrorCode.SESSION_EXPIRED.value,\n            message=f\"Session {session_id} has expired\",\n            recoverable=True,  # Can reconnect\n            request_id=request_id,\n            http_status=401,\n        )\n\n\nclass TimeoutError(A2AError):\n    \"\"\"Operation timed out.\"\"\"\n    \n    def __init__(\n        self,\n        operation: str,\n        timeout_seconds: float,\n        request_id: Optional[str] = None,\n    ):\n        super().__init__(\n            code=ErrorCode.TIMEOUT.value,\n            message=f\"{operation} timed out after {timeout_seconds}s\",\n            recoverable=True,\n            request_id=request_id,\n            http_status=504,\n        )\n\n\nclass ServiceUnavailableError(A2AError):\n    \"\"\"Service temporarily unavailable.\"\"\"\n    \n    def __init__(self, message: str = \"Service unavailable\", request_id: Optional[str] = None):\n        super().__init__(\n            code=ErrorCode.SERVICE_UNAVAILABLE.value,\n            message=message,\n            recoverable=True,\n            request_id=request_id,\n            http_status=503,\n        )\n\n\nimport time\n"
-          }
-</invoke>
+"""
+A2A Standard Error Codes and Exceptions.
+
+See: /spec/A2A_PROTOCOL_v1.md#8-error-handling
+"""
+
+import time
+from dataclasses import dataclass
+from typing import Optional, Dict, Any
+from enum import Enum
+
+
+class ErrorCode(Enum):
+    """Standard A2A error codes."""
+    UNVERIFIED_AGENT = "UNVERIFIED_AGENT"
+    INVALID_MANIFEST = "INVALID_MANIFEST"
+    POLICY_VIOLATION = "POLICY_VIOLATION"
+    RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED"
+    UNSUPPORTED_CAPABILITY = "UNSUPPORTED_CAPABILITY"
+    INVALID_INTENT = "INVALID_INTENT"
+    PROTOCOL_VERSION_UNSUPPORTED = "PROTOCOL_VERSION_UNSUPPORTED"
+    HANDSHAKE_FAILED = "HANDSHAKE_FAILED"
+    SESSION_EXPIRED = "SESSION_EXPIRED"
+    TIMEOUT = "TIMEOUT"
+    SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+
+
+@dataclass
+class A2AError(Exception):
+    """
+    Base exception for A2A errors.
+
+    Attributes:
+        code: Standard error code
+        message: Human-readable error message
+        details: Additional error details (dict)
+        recoverable: Whether this error is recoverable (can retry)
+        request_id: Correlation ID for logging
+        http_status: Recommended HTTP status code
+    """
+
+    code: str
+    message: str
+    details: Dict[str, Any] = None
+    recoverable: bool = False
+    request_id: Optional[str] = None
+    http_status: int = 500
+
+    def __post_init__(self):
+        if self.details is None:
+            self.details = {}
+        super().__init__(self.message)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to JSON-serializable dict."""
+        return {
+            "error_code": self.code,
+            "error_message": self.message,
+            "details": self.details,
+            "request_id": self.request_id,
+            "recoverable": self.recoverable,
+        }
+
+
+class UnverifiedAgentError(A2AError):
+    """Agent identity cannot be verified."""
+
+    def __init__(self, message: str, request_id: Optional[str] = None):
+        super().__init__(
+            code=ErrorCode.UNVERIFIED_AGENT.value,
+            message=message,
+            recoverable=False,
+            request_id=request_id,
+            http_status=401,
+        )
+
+
+class InvalidManifestError(A2AError):
+    """Manifest format or content invalid."""
+
+    def __init__(self, message: str, request_id: Optional[str] = None):
+        super().__init__(
+            code=ErrorCode.INVALID_MANIFEST.value,
+            message=message,
+            recoverable=False,
+            request_id=request_id,
+            http_status=400,
+        )
+
+
+class PolicyError(A2AError):
+    """Policy violation (rate limit, blocked intent, etc)."""
+
+    def __init__(
+        self,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ):
+        super().__init__(
+            code=ErrorCode.POLICY_VIOLATION.value,
+            message=message,
+            details=details or {},
+            recoverable=False,
+            request_id=request_id,
+            http_status=403,
+        )
+
+
+class RateLimitError(A2AError):
+    """Rate limit exceeded."""
+
+    def __init__(
+        self,
+        limit: int,
+        period: int,
+        current_rate: int,
+        reset_at: int,
+        request_id: Optional[str] = None,
+    ):
+        super().__init__(
+            code=ErrorCode.RATE_LIMIT_EXCEEDED.value,
+            message=f"Rate limit: {limit} requests per {period} seconds",
+            details={
+                "limit": limit,
+                "period": period,
+                "current_rate": current_rate,
+                "reset_at": reset_at,
+                "retry_after_seconds": reset_at - int(time.time()),
+            },
+            recoverable=True,
+            request_id=request_id,
+            http_status=429,
+        )
+
+
+class HandshakeError(A2AError):
+    """Handshake protocol error."""
+
+    def __init__(self, message: str, request_id: Optional[str] = None):
+        super().__init__(
+            code=ErrorCode.HANDSHAKE_FAILED.value,
+            message=message,
+            recoverable=True,
+            request_id=request_id,
+            http_status=500,
+        )
+
+
+class SessionExpiredError(A2AError):
+    """Session has expired."""
+
+    def __init__(self, session_id: str, request_id: Optional[str] = None):
+        super().__init__(
+            code=ErrorCode.SESSION_EXPIRED.value,
+            message=f"Session {session_id} has expired",
+            recoverable=True,
+            request_id=request_id,
+            http_status=401,
+        )
+
+
+class TimeoutError(A2AError):
+    """Operation timed out."""
+
+    def __init__(
+        self,
+        operation: str,
+        timeout_seconds: float,
+        request_id: Optional[str] = None,
+    ):
+        super().__init__(
+            code=ErrorCode.TIMEOUT.value,
+            message=f"{operation} timed out after {timeout_seconds}s",
+            recoverable=True,
+            request_id=request_id,
+            http_status=504,
+        )
+
+
+class ServiceUnavailableError(A2AError):
+    """Service temporarily unavailable."""
+
+    def __init__(self, message: str = "Service unavailable", request_id: Optional[str] = None):
+        super().__init__(
+            code=ErrorCode.SERVICE_UNAVAILABLE.value,
+            message=message,
+            recoverable=True,
+            request_id=request_id,
+            http_status=503,
+        )
